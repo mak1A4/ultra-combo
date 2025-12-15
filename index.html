@@ -19,8 +19,8 @@
 
       <!-- Remote Mode -->
       <section class="mb-8">
-        <h2 class="text-lg font-semibold mb-2">Remote Mode</h2>
-        <p class="text-gray-600 text-sm mb-3">REST Countries API with debounced search</p>
+        <h2 class="text-lg font-semibold mb-2">Remote Mode (with autoload)</h2>
+        <p class="text-gray-600 text-sm mb-3">REST Countries API with autoload and debounced search</p>
         <ultra-combo id="remote-combo" placeholder="Search countries..."></ultra-combo>
         <p class="mt-2 text-sm text-gray-600">Selected: <span id="remote-selected" class="font-medium">None</span></p>
       </section>
@@ -54,22 +54,26 @@
       const remoteSelected = document.getElementById('remote-selected')
 
       remoteCombo.pageSize = 10
+      remoteCombo.autoload = true
       remoteCombo.fetchOptions = async (search, offset, limit) => {
-        // REST Countries API - search by name
-        if (!search) {
-          return { options: [], hasMore: false }
-        }
-
         try {
-          const res = await fetch(
-            `https://restcountries.com/v3.1/name/${encodeURIComponent(search)}`
-          )
+          // Use /all endpoint when no search, otherwise search by name
+          const url = search
+            ? `https://restcountries.com/v3.1/name/${encodeURIComponent(search)}?fields=name,cca2`
+            : 'https://restcountries.com/v3.1/all?fields=name,cca2'
+
+          const res = await fetch(url)
 
           if (!res.ok) {
             return { options: [], hasMore: false }
           }
 
           const data = await res.json()
+
+          // Sort alphabetically when showing all countries
+          if (!search) {
+            data.sort((a, b) => a.name.common.localeCompare(b.name.common))
+          }
 
           // Client-side pagination (API returns all matches)
           const paginated = data.slice(offset, offset + limit)
