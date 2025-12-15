@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ultra Combo</title>
+  </head>
+  <body>
+    <div class="p-8 max-w-2xl mx-auto">
+      <h1 class="text-2xl font-bold mb-8">Ultra Combo Demo</h1>
+
+      <!-- Local Mode -->
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold mb-2">Local Mode</h2>
+        <p class="text-gray-600 text-sm mb-3">Static options with client-side filtering</p>
+        <ultra-combo id="local-combo" placeholder="Select a country..."></ultra-combo>
+        <p class="mt-2 text-sm text-gray-600">Selected: <span id="local-selected" class="font-medium">None</span></p>
+      </section>
+
+      <!-- Remote Mode -->
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold mb-2">Remote Mode</h2>
+        <p class="text-gray-600 text-sm mb-3">REST Countries API with debounced search</p>
+        <ultra-combo id="remote-combo" placeholder="Search countries..."></ultra-combo>
+        <p class="mt-2 text-sm text-gray-600">Selected: <span id="remote-selected" class="font-medium">None</span></p>
+      </section>
+    </div>
+
+    <script type="module" src="/src/index.ts"></script>
+    <script type="module">
+      // Local combo setup
+      const localCombo = document.getElementById('local-combo')
+      const localSelected = document.getElementById('local-selected')
+
+      localCombo.options = [
+        { value: 'us', label: 'United States' },
+        { value: 'uk', label: 'United Kingdom' },
+        { value: 'ca', label: 'Canada' },
+        { value: 'au', label: 'Australia' },
+        { value: 'de', label: 'Germany' },
+        { value: 'fr', label: 'France' },
+        { value: 'jp', label: 'Japan' },
+        { value: 'br', label: 'Brazil' },
+        { value: 'in', label: 'India' },
+        { value: 'mx', label: 'Mexico' },
+      ]
+
+      localCombo.addEventListener('change', (e) => {
+        localSelected.textContent = `${e.detail.label} (${e.detail.value})`
+      })
+
+      // Remote combo setup
+      const remoteCombo = document.getElementById('remote-combo')
+      const remoteSelected = document.getElementById('remote-selected')
+
+      remoteCombo.pageSize = 10
+      remoteCombo.fetchOptions = async (search, offset, limit) => {
+        // REST Countries API - search by name
+        if (!search) {
+          return { options: [], hasMore: false }
+        }
+
+        try {
+          const res = await fetch(
+            `https://restcountries.com/v3.1/name/${encodeURIComponent(search)}`
+          )
+
+          if (!res.ok) {
+            return { options: [], hasMore: false }
+          }
+
+          const data = await res.json()
+
+          // Client-side pagination (API returns all matches)
+          const paginated = data.slice(offset, offset + limit)
+
+          return {
+            options: paginated.map(country => ({
+              value: country.cca2,
+              label: country.name.common
+            })),
+            hasMore: offset + limit < data.length
+          }
+        } catch (err) {
+          console.error('Fetch error:', err)
+          return { options: [], hasMore: false }
+        }
+      }
+
+      remoteCombo.addEventListener('change', (e) => {
+        remoteSelected.textContent = `${e.detail.label} (${e.detail.value})`
+      })
+    </script>
+  </body>
+</html>
