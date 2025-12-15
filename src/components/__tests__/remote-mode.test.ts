@@ -70,7 +70,7 @@ describe('UltraCombo - Remote Mode', () => {
     await el.updateComplete
 
     // The fetch should have been called with empty search string
-    expect(mockFetch).toHaveBeenCalledWith('', 0, 20)
+    expect(mockFetch).toHaveBeenCalledWith('', 0, 20, null)
   })
 
   it('debounces input for remote fetch', async () => {
@@ -104,7 +104,7 @@ describe('UltraCombo - Remote Mode', () => {
 
     // Now fetch should have been called once with final value
     expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockFetch).toHaveBeenCalledWith('abc', 0, 20)
+    expect(mockFetch).toHaveBeenCalledWith('abc', 0, 20, null)
   })
 
   it('shows "Loading more..." during pagination', async () => {

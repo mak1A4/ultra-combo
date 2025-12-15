@@ -43,6 +43,10 @@ pnpm add ultra-combo
 - Keyboard navigation (Arrow keys, Enter, Escape, Tab)
 - Skeleton loading animation
 - Autoload initial results
+- Table mode with multi-column display
+- Cascading/dependent comboboxes
+- Size presets (sm, md, lg)
+- Clear button
 - Fully declarative with HTML attributes
 - Accessible and lightweight
 
@@ -120,7 +124,7 @@ For complex scenarios, provide a custom `fetchOptions` function:
 <script>
   const combo = document.getElementById('combo')
 
-  combo.fetchOptions = async (search, offset, limit) => {
+  combo.fetchOptions = async (search, offset, limit, parentValue) => {
     const response = await fetch(
       `https://api.example.com/search?q=${search}&skip=${offset}&take=${limit}`
     )
@@ -137,28 +141,143 @@ For complex scenarios, provide a custom `fetchOptions` function:
 </script>
 ```
 
+### Table Mode
+
+Display options in a multi-column table format:
+
+```html
+<ultra-combo
+  id="users"
+  columns="name,email,role"
+  column-headers="Name,Email,Role"
+  show-header
+  placeholder="Select a user..."
+></ultra-combo>
+
+<script>
+  document.getElementById('users').options = [
+    { value: '1', label: 'John', _raw: { name: 'John Doe', email: 'john@example.com', role: 'Admin' } },
+    { value: '2', label: 'Jane', _raw: { name: 'Jane Smith', email: 'jane@example.com', role: 'Editor' } },
+  ]
+</script>
+```
+
+### Cascading/Dependent Comboboxes
+
+Create dependent comboboxes where child options depend on parent selection:
+
+```html
+<!-- Parent combo -->
+<ultra-combo id="category" placeholder="Select category..."></ultra-combo>
+
+<!-- Child combo - depends on category -->
+<ultra-combo
+  id="product"
+  depends-on="category"
+  disable-without-parent
+  placeholder="Select product..."
+></ultra-combo>
+
+<script>
+  document.getElementById('category').options = [
+    { value: 'electronics', label: 'Electronics' },
+    { value: 'clothing', label: 'Clothing' },
+  ]
+
+  // Products with parentValue property for auto-filtering
+  document.getElementById('product').options = [
+    { value: 'phone', label: 'Phone', parentValue: 'electronics' },
+    { value: 'laptop', label: 'Laptop', parentValue: 'electronics' },
+    { value: 'shirt', label: 'Shirt', parentValue: 'clothing' },
+    { value: 'pants', label: 'Pants', parentValue: 'clothing' },
+  ]
+</script>
+```
+
+**With Remote Mode:**
+
+Use `{depends}` placeholder in `fetch-url`:
+
+```html
+<ultra-combo id="country" autoload></ultra-combo>
+
+<ultra-combo
+  id="city"
+  depends-on="country"
+  fetch-url="https://api.example.com/cities?country={depends}&q={search}"
+  disable-without-parent
+></ultra-combo>
+```
+
+**Complex Multi-Parent Dependencies (Scripting):**
+
+```html
+<ultra-combo id="dept"></ultra-combo>
+<ultra-combo id="role"></ultra-combo>
+<ultra-combo id="employee"></ultra-combo>
+
+<script>
+  const employee = document.getElementById('employee')
+  const dept = document.getElementById('dept')
+  const role = document.getElementById('role')
+
+  const updateEmployee = () => {
+    if (!dept.value || !role.value) {
+      employee.clear()
+      return
+    }
+
+    employee.fetchOptions = async (search, offset, limit) => {
+      const res = await fetch(`/api/employees?dept=${dept.value}&role=${role.value}&q=${search}`)
+      return res.json()
+    }
+    employee.refresh()
+  }
+
+  dept.addEventListener('change', updateEmployee)
+  role.addEventListener('change', updateEmployee)
+</script>
+```
+
 ## Attributes
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `placeholder` | String | `'Select an option...'` | Input placeholder text |
 | `value` | String | `''` | Currently selected value |
+| `size` | String | `'md'` | Size preset: `sm`, `md`, `lg` |
 | `page-size` | Number | `20` | Items per page for pagination |
 | `debounce` | Number | `150` | Debounce delay (ms) for remote search |
 | `autoload` | Boolean | `false` | Auto-fetch results when dropdown opens |
-| `fetch-url` | String | `null` | URL template with `{search}`, `{offset}`, `{limit}` placeholders |
+| `fetch-url` | String | `null` | URL template with `{search}`, `{offset}`, `{limit}`, `{depends}` placeholders |
 | `value-key` | String | `'value'` | Key to extract option value (supports dot notation) |
 | `label-key` | String | `'label'` | Key to extract option label (supports dot notation) |
 | `results-path` | String | `''` | Dot-notation path to results array in response |
 | `total-path` | String | `''` | Dot-notation path to total count for pagination |
+| `columns` | String | `''` | Comma-separated column keys for table mode |
+| `column-headers` | String | `''` | Comma-separated headers (defaults to capitalized keys) |
+| `show-header` | Boolean | `false` | Show table header row |
+| `search-columns` | String | `''` | Columns to search (defaults to all in table mode) |
+| `depends-on` | String | `null` | ID of parent combobox for cascading |
+| `depends-param` | String | `'parentValue'` | Parameter name for parent's value in fetch |
+| `disable-without-parent` | Boolean | `false` | Disable until parent has value |
 
 ## Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `options` | `Array<{value: string, label: string}>` | Static options for local mode |
-| `fetchOptions` | `Function` | Custom fetch function for remote mode |
+| `options` | `Array<Option>` | Static options for local mode |
+| `fetchOptions` | `Function` | Custom fetch function: `(search, offset, limit, parentValue?) => Promise<FetchResult>` |
+| `filterOptions` | `Function` | Custom filter for local mode: `(options, parentValue) => Option[]` |
 | `value` | `string` | Get/set the selected value |
+| `parentValue` | `string \| null` | Current parent combo's value (readonly) |
+
+## Methods
+
+| Method | Description |
+|--------|-------------|
+| `refresh()` | Force reload remote options |
+| `clear()` | Clear value and options cache |
 
 ## Events
 

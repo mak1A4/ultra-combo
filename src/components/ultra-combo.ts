@@ -1,17 +1,21 @@
-import { LitElement, html, css } from 'lit'
+import { LitElement, html, css, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { getByPath, formatTemplate } from './ultra-combo.utils.js'
-import type { Option, FetchResult, FetchOptions } from './ultra-combo.types.js'
+import type { Option, FetchResult, FetchOptions, FilterOptions } from './ultra-combo.types.js'
+import resetCSS from '@unocss/reset/tailwind.css?inline'
 
 // Re-export types for external consumers
-export type { Option, FetchResult, FetchOptions }
+export type { Option, FetchResult, FetchOptions, FilterOptions }
 
 @customElement('ultra-combo')
 export class UltraCombo extends LitElement {
-  static styles = css`
-    :host { display: block }
-    @unocss-placeholder
-  `
+  static styles = [
+    unsafeCSS(resetCSS),
+    css`
+      :host { display: block }
+      @unocss-placeholder
+    `
+  ]
 
   @property({ type: Array })
   options: Option[] = []
@@ -52,6 +56,9 @@ export class UltraCombo extends LitElement {
   @property({ type: String })
   columns = ''
 
+  @property({ type: String, attribute: 'search-columns' })
+  searchColumns = ''
+
   @property({ type: String, attribute: 'column-headers' })
   columnHeaders = ''
 
@@ -60,6 +67,24 @@ export class UltraCombo extends LitElement {
 
   @property({ type: String, attribute: 'display-template' })
   displayTemplate = ''
+
+  @property({ type: String })
+  size: 'sm' | 'md' | 'lg' = 'md'
+
+  @property({ type: String, attribute: 'depends-on' })
+  dependsOn: string | null = null
+
+  @property({ type: String, attribute: 'depends-param' })
+  dependsParam = 'parentValue'
+
+  @property({ type: Boolean, attribute: 'disable-without-parent' })
+  disableWithoutParent = false
+
+  @property({ attribute: false })
+  filterOptions: FilterOptions | null = null
+
+  @state()
+  private _parentValue: string | null = null
 
   @state()
   private _isOpen = false
@@ -88,17 +113,72 @@ export class UltraCombo extends LitElement {
   private _debounceTimer: number | null = null
   private _abortController: AbortController | null = null
   private _boundHandleClickOutside = this._handleClickOutside.bind(this)
+  private _boundHandleParentChange = this._handleParentChange.bind(this)
   private _lastSearch = ''
+
+  private get _parentCombo(): UltraCombo | null {
+    if (!this.dependsOn) return null
+    return document.getElementById(this.dependsOn) as UltraCombo | null
+  }
+
+  private get _isEffectivelyDisabled(): boolean {
+    return this.disableWithoutParent && this.dependsOn !== null && !this._parentValue
+  }
+
+  private _handleParentChange(e: Event) {
+    const detail = (e as CustomEvent<{ value: string; label: string }>).detail
+    const newParentValue = detail.value || null
+
+    if (newParentValue === this._parentValue) return
+
+    this._parentValue = newParentValue
+
+    // Clear child value
+    if (this.value) {
+      this.value = ''
+      this._inputValue = ''
+      this.dispatchEvent(new CustomEvent('change', {
+        detail: { value: '', label: '' },
+        bubbles: true,
+        composed: true
+      }))
+    }
+
+    // Clear cache
+    this._remoteOptions = []
+    this._offset = 0
+    this._hasMore = false
+    this._lastSearch = ''
+
+    // Auto-fetch if needed
+    if (this._isRemoteMode && newParentValue && (this._isOpen || this.autoload)) {
+      this._fetchRemote('', true)
+    }
+  }
+
+  private _setupDependency() {
+    const parent = this._parentCombo
+    if (!parent) {
+      console.warn(`UltraCombo: depends-on="${this.dependsOn}" not found`)
+      return
+    }
+    this._parentValue = parent.value || null
+    parent.addEventListener('change', this._boundHandleParentChange)
+  }
 
   connectedCallback() {
     super.connectedCallback()
     document.addEventListener('click', this._boundHandleClickOutside)
+    if (this.dependsOn) {
+      requestAnimationFrame(() => this._setupDependency())
+    }
   }
 
   disconnectedCallback() {
     super.disconnectedCallback()
     document.removeEventListener('click', this._boundHandleClickOutside)
     if (this._debounceTimer) clearTimeout(this._debounceTimer)
+    this._parentCombo?.removeEventListener('change', this._boundHandleParentChange)
   }
 
   private get _isRemoteMode(): boolean {
@@ -120,11 +200,50 @@ export class UltraCombo extends LitElement {
     return this._columnKeys.map(k => k.charAt(0).toUpperCase() + k.slice(1))
   }
 
+  private get _searchColumnKeys(): string[] {
+    return this.searchColumns ? this.searchColumns.split(',').map(c => c.trim()) : []
+  }
+
+  private get _sizeClasses() {
+    const sizes = {
+      sm: {
+        input: 'px-2 py-1 text-sm',
+        button: 'p-1',
+        icon: 'w-3.5 h-3.5',
+        dropdown: 'max-h-[160px]',
+        item: 'px-2 py-1 text-sm',
+      },
+      md: {
+        input: 'px-2.5 py-1.5 text-sm',
+        button: 'p-1.5',
+        icon: 'w-4 h-4',
+        dropdown: 'max-h-[200px]',
+        item: 'px-2.5 py-1.5 text-sm',
+      },
+      lg: {
+        input: 'px-3 py-2 text-base',
+        button: 'p-2',
+        icon: 'w-4 h-4',
+        dropdown: 'max-h-[240px]',
+        item: 'px-3 py-2',
+      },
+    }
+    return sizes[this.size] || sizes.md
+  }
+
   private async _fetchFromUrl(search: string, offset: number, limit: number): Promise<FetchResult> {
-    const url = this.fetchUrl!
+    let url = this.fetchUrl!
       .replace('{search}', encodeURIComponent(search))
       .replace('{offset}', String(offset))
       .replace('{limit}', String(limit))
+
+    // Handle dependency placeholder
+    if (this._parentValue !== null) {
+      url = url.replace('{depends}', encodeURIComponent(this._parentValue))
+    } else if (url.includes('{depends}')) {
+      // No parent value but placeholder exists - return empty
+      return { options: [], hasMore: false }
+    }
 
     const res = await fetch(url)
     if (!res.ok) return { options: [], hasMore: false }
@@ -159,11 +278,40 @@ export class UltraCombo extends LitElement {
     if (this._isRemoteMode) {
       return this._remoteOptions
     }
-    if (!this._inputValue) return this.options
+
+    let opts = this.options
+
+    // Local mode: filter by parentValue or filterOptions
+    if (this.dependsOn) {
+      if (this.filterOptions) {
+        opts = this.filterOptions(opts, this._parentValue)
+      } else if (this._parentValue) {
+        opts = opts.filter(opt => !opt.parentValue || opt.parentValue === this._parentValue)
+      } else {
+        // No parent value selected, show nothing unless option has no parentValue requirement
+        opts = opts.filter(opt => !opt.parentValue)
+      }
+    }
+
+    if (!this._inputValue) return opts
+
     const search = this._inputValue.toLowerCase()
-    return this.options.filter(opt =>
-      opt.label.toLowerCase().includes(search)
-    )
+    // Use specified search columns, or all columns if in table mode, or empty
+    const searchKeys = this._searchColumnKeys.length > 0
+      ? this._searchColumnKeys
+      : this._columnKeys
+
+    return opts.filter(opt => {
+      // If search columns available, search those fields in _raw
+      if (searchKeys.length > 0 && opt._raw) {
+        return searchKeys.some(key => {
+          const value = getByPath(opt._raw, key)
+          return value && String(value).toLowerCase().includes(search)
+        })
+      }
+      // Default: search label only
+      return opt.label.toLowerCase().includes(search)
+    })
   }
 
   private get _selectedOption(): Option | undefined {
@@ -185,25 +333,44 @@ export class UltraCombo extends LitElement {
   }
 
   render() {
+    const s = this._sizeClasses
+    const disabled = this._isEffectivelyDisabled
     return html`
       <div class="relative w-full max-w-[300px]">
-        <div class="flex items-center border border-gray-300 rounded-md bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
+        <div class="flex items-center border border-gray-300 rounded-md ${disabled ? 'bg-gray-50 opacity-60' : 'bg-white'} focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
           <input
             type="text"
-            class="flex-1 px-3 py-2 border-none rounded-md text-base outline-none bg-transparent"
+            class="flex-1 ${s.input} border-none rounded-md outline-none bg-transparent ${disabled ? 'cursor-not-allowed' : ''}"
             .value=${this._displayValue}
-            placeholder=${this.placeholder}
+            placeholder=${disabled ? 'Select parent first...' : this.placeholder}
+            ?disabled=${disabled}
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
             @input=${this._onInput}
             @focus=${this._onFocus}
             @keydown=${this._onKeyDown}
           />
+          ${this.value ? html`
+            <button
+              class="clear-btn flex items-center justify-center ${s.button} border-none bg-transparent cursor-pointer text-gray-400 hover:text-gray-600"
+              @click=${this._clearValue}
+              type="button"
+              tabindex="-1"
+            >
+              <svg class="${s.icon}" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          ` : null}
           <button
-            class="toggle-btn flex items-center justify-center p-2 border-none bg-transparent cursor-pointer text-gray-500 hover:text-gray-700"
+            class="toggle-btn flex items-center justify-center ${s.button} border-none bg-transparent cursor-pointer text-gray-500 hover:text-gray-700"
             @click=${this._toggleDropdown}
             type="button"
             tabindex="-1"
           >
-            <svg class="w-4 h-4 transition-transform duration-200 ${this._isOpen ? 'rotate-180' : ''}" viewBox="0 0 20 20" fill="currentColor">
+            <svg class="${s.icon} transition-transform duration-200 ${this._isOpen ? 'rotate-180' : ''}" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
             </svg>
           </button>
@@ -215,10 +382,11 @@ export class UltraCombo extends LitElement {
 
   private _renderDropdown() {
     const filtered = this._filteredOptions
+    const s = this._sizeClasses
 
     if (this._isLoading) {
       return html`
-        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md max-h-[200px] overflow-y-auto z-10">
+        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10">
           <div class="skeleton-container py-1">
             <div class="skeleton-item h-8 mx-2 my-1 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 bg-[length:200%_100%] animate-shimmer rounded w-[85%]"></div>
             <div class="skeleton-item h-8 mx-2 my-1 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 bg-[length:200%_100%] animate-shimmer rounded w-[70%]"></div>
@@ -231,8 +399,8 @@ export class UltraCombo extends LitElement {
 
     if (filtered.length === 0) {
       return html`
-        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md max-h-[200px] overflow-y-auto z-10">
-          <div class="no-results px-3 py-2 text-gray-500 italic">
+        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10">
+          <div class="no-results ${s.item} text-gray-500 italic">
             ${this._isRemoteMode && !this._inputValue && !this.autoload
               ? 'Type to search...'
               : 'No results found'}
@@ -246,13 +414,13 @@ export class UltraCombo extends LitElement {
     }
 
     return html`
-      <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md max-h-[200px] overflow-y-auto z-10" @scroll=${this._onDropdownScroll}>
+      <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10" @scroll=${this._onDropdownScroll}>
         ${filtered.map((opt, index) => {
           const isSelected = opt.value === this.value
           const isHighlighted = index === this._highlightedIndex
           return html`
             <div
-              class="dropdown-item px-3 py-2 cursor-pointer hover:bg-gray-100 ${isHighlighted ? 'highlighted bg-gray-100' : ''} ${isSelected ? 'selected bg-blue-50 text-blue-600' : ''} ${isSelected && isHighlighted ? 'bg-blue-100' : ''}"
+              class="dropdown-item ${s.item} cursor-pointer hover:bg-gray-100 ${isHighlighted ? 'highlighted bg-gray-100' : ''} ${isSelected ? 'selected bg-blue-50 text-blue-600' : ''} ${isSelected && isHighlighted ? 'bg-blue-100' : ''}"
               @click=${() => this._selectOption(opt)}
               @mouseenter=${() => this._highlightedIndex = index}
             >
@@ -261,7 +429,7 @@ export class UltraCombo extends LitElement {
           `
         })}
         ${this._isLoadingMore ? html`
-          <div class="loading-more px-3 py-2 text-gray-500 text-sm text-center flex items-center justify-center gap-2">
+          <div class="loading-more ${s.item} text-gray-500 text-sm text-center flex items-center justify-center gap-2">
             <span class="spinner w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"></span> Loading more...
           </div>
         ` : null}
@@ -270,14 +438,15 @@ export class UltraCombo extends LitElement {
   }
 
   private _renderTableDropdown(options: Option[]) {
+    const s = this._sizeClasses
     return html`
-      <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md max-h-[200px] overflow-y-auto z-10" @scroll=${this._onDropdownScroll}>
+      <div class="dropdown absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto overflow-x-auto z-10 min-w-full w-max" @scroll=${this._onDropdownScroll}>
         <table class="w-full border-collapse">
           ${this.showHeader ? html`
             <thead>
               <tr>
                 ${this._columnHeaderLabels.map(h => html`
-                  <th class="text-left px-3 py-2 font-semibold text-xs uppercase text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">${h}</th>
+                  <th class="text-left ${s.item} font-semibold text-xs uppercase text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">${h}</th>
                 `)}
               </tr>
             </thead>
@@ -293,7 +462,7 @@ export class UltraCombo extends LitElement {
                   @mouseenter=${() => this._highlightedIndex = index}
                 >
                   ${this._columnKeys.map(key => html`
-                    <td class="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">${getByPath(opt._raw ?? opt, key) ?? ''}</td>
+                    <td class="${s.item} whitespace-nowrap">${getByPath(opt._raw ?? opt, key) ?? ''}</td>
                   `)}
                 </tr>
               `
@@ -301,7 +470,7 @@ export class UltraCombo extends LitElement {
           </tbody>
         </table>
         ${this._isLoadingMore ? html`
-          <div class="loading-more px-3 py-2 text-gray-500 text-sm text-center flex items-center justify-center gap-2">
+          <div class="loading-more ${s.item} text-gray-500 text-sm text-center flex items-center justify-center gap-2">
             <span class="spinner w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"></span> Loading more...
           </div>
         ` : null}
@@ -343,6 +512,13 @@ export class UltraCombo extends LitElement {
   private async _fetchRemote(search: string, reset: boolean) {
     if (!this._isRemoteMode) return
 
+    // Skip if dependency required but no parent value
+    if (this.dependsOn && !this._parentValue) {
+      this._remoteOptions = []
+      this._hasMore = false
+      return
+    }
+
     const fetcher = this.fetchOptions ?? this._fetchFromUrl.bind(this)
 
     if (this._abortController) {
@@ -360,7 +536,8 @@ export class UltraCombo extends LitElement {
     this._lastSearch = search
 
     try {
-      const result = await fetcher(search, this._offset, this.pageSize)
+      // Pass parent value as 4th parameter
+      const result = await fetcher(search, this._offset, this.pageSize, this._parentValue)
 
       if (this._lastSearch !== search) return
 
@@ -483,6 +660,42 @@ export class UltraCombo extends LitElement {
     this._highlightedIndex = -1
     this.dispatchEvent(new CustomEvent('change', {
       detail: { value: opt.value, label: opt.label },
+      bubbles: true,
+      composed: true
+    }))
+  }
+
+  private _clearValue(e: Event) {
+    e.stopPropagation()
+    this.clear()
+  }
+
+  // Public API methods
+
+  /** Get the current parent combo's value (readonly) */
+  get parentValue(): string | null {
+    return this._parentValue
+  }
+
+  /** Force reload remote options */
+  refresh() {
+    if (this._isRemoteMode) {
+      this._fetchRemote('', true)
+    }
+    this.requestUpdate()
+  }
+
+  /** Clear value and options cache */
+  clear() {
+    this.value = ''
+    this._inputValue = ''
+    this._isOpen = false
+    this._highlightedIndex = -1
+    this._remoteOptions = []
+    this._offset = 0
+    this._hasMore = false
+    this.dispatchEvent(new CustomEvent('change', {
+      detail: { value: '', label: '' },
       bubbles: true,
       composed: true
     }))

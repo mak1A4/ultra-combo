@@ -9,6 +9,20 @@
     <div class="p-8 max-w-2xl mx-auto">
       <h1 class="text-2xl font-bold mb-8">Ultra Combo Demo</h1>
 
+      <!-- Table Mode -->
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold mb-2">Table Mode</h2>
+        <p class="text-gray-600 text-sm mb-3">Display options in a multi-column table format</p>
+        <ultra-combo
+          id="table-combo"
+          placeholder="Select a user..."
+          columns="name,email,role"
+          column-headers="Name,Email,Role"
+          show-header
+        ></ultra-combo>
+        <p class="mt-2 text-sm text-gray-600">Selected: <span id="table-selected" class="font-medium">None</span></p>
+      </section>
+
       <!-- Local Mode -->
       <section class="mb-8">
         <h2 class="text-lg font-semibold mb-2">Local Mode</h2>
@@ -24,10 +38,71 @@
         <ultra-combo id="remote-combo" placeholder="Search countries..."></ultra-combo>
         <p class="mt-2 text-sm text-gray-600">Selected: <span id="remote-selected" class="font-medium">None</span></p>
       </section>
+
+      <!-- Cascading/Dependent Combos -->
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold mb-2">Cascading Mode (Local)</h2>
+        <p class="text-gray-600 text-sm mb-3">Child combo depends on parent selection</p>
+        <div class="flex flex-col gap-3">
+          <div>
+            <span class="text-xs text-gray-500 mb-1 block">Category</span>
+            <ultra-combo id="category-combo" placeholder="Select category..."></ultra-combo>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500 mb-1 block">Product (depends on category)</span>
+            <ultra-combo
+              id="product-combo"
+              depends-on="category-combo"
+              disable-without-parent
+              placeholder="Select product..."
+            ></ultra-combo>
+          </div>
+        </div>
+        <p class="mt-2 text-sm text-gray-600">
+          Category: <span id="category-selected" class="font-medium">None</span>,
+          Product: <span id="product-selected" class="font-medium">None</span>
+        </p>
+      </section>
+
+      <!-- Sizes -->
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold mb-2">Sizes</h2>
+        <p class="text-gray-600 text-sm mb-3">Available size presets: sm, md, lg</p>
+        <div class="flex flex-col gap-4">
+          <div>
+            <span class="text-xs text-gray-500 mb-1 block">Small (sm)</span>
+            <ultra-combo id="size-sm" size="sm" placeholder="Small size..."></ultra-combo>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500 mb-1 block">Medium (md) - default</span>
+            <ultra-combo id="size-md" size="md" placeholder="Medium size..."></ultra-combo>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500 mb-1 block">Large (lg)</span>
+            <ultra-combo id="size-lg" size="lg" placeholder="Large size..."></ultra-combo>
+          </div>
+        </div>
+      </section>
     </div>
 
     <script type="module" src="/src/index.ts"></script>
     <script type="module">
+      // Table combo setup
+      const tableCombo = document.getElementById('table-combo')
+      const tableSelected = document.getElementById('table-selected')
+
+      tableCombo.options = [
+        { value: '1', label: 'John Doe', _raw: { name: 'John Doe', email: 'john@example.com', role: 'Admin' } },
+        { value: '2', label: 'Jane Smith', _raw: { name: 'Jane Smith', email: 'jane@example.com', role: 'Editor' } },
+        { value: '3', label: 'Bob Wilson', _raw: { name: 'Bob Wilson', email: 'bob@example.com', role: 'Viewer' } },
+        { value: '4', label: 'Alice Brown', _raw: { name: 'Alice Brown', email: 'alice@example.com', role: 'Editor' } },
+        { value: '5', label: 'Charlie Davis', _raw: { name: 'Charlie Davis', email: 'charlie@example.com', role: 'Admin' } },
+      ]
+
+      tableCombo.addEventListener('change', (e) => {
+        tableSelected.textContent = `${e.detail.label} (${e.detail.value})`
+      })
+
       // Local combo setup
       const localCombo = document.getElementById('local-combo')
       const localSelected = document.getElementById('local-selected')
@@ -94,6 +169,50 @@
       remoteCombo.addEventListener('change', (e) => {
         remoteSelected.textContent = `${e.detail.label} (${e.detail.value})`
       })
+
+      // Cascading demo setup
+      const categoryCombo = document.getElementById('category-combo')
+      const productCombo = document.getElementById('product-combo')
+      const categorySelected = document.getElementById('category-selected')
+      const productSelected = document.getElementById('product-selected')
+
+      categoryCombo.options = [
+        { value: 'electronics', label: 'Electronics' },
+        { value: 'clothing', label: 'Clothing' },
+        { value: 'food', label: 'Food' },
+      ]
+
+      productCombo.options = [
+        { value: 'phone', label: 'Phone', parentValue: 'electronics' },
+        { value: 'laptop', label: 'Laptop', parentValue: 'electronics' },
+        { value: 'headphones', label: 'Headphones', parentValue: 'electronics' },
+        { value: 'shirt', label: 'Shirt', parentValue: 'clothing' },
+        { value: 'pants', label: 'Pants', parentValue: 'clothing' },
+        { value: 'shoes', label: 'Shoes', parentValue: 'clothing' },
+        { value: 'apple', label: 'Apple', parentValue: 'food' },
+        { value: 'bread', label: 'Bread', parentValue: 'food' },
+        { value: 'cheese', label: 'Cheese', parentValue: 'food' },
+      ]
+
+      categoryCombo.addEventListener('change', (e) => {
+        categorySelected.textContent = e.detail.value ? `${e.detail.label} (${e.detail.value})` : 'None'
+      })
+
+      productCombo.addEventListener('change', (e) => {
+        productSelected.textContent = e.detail.value ? `${e.detail.label} (${e.detail.value})` : 'None'
+      })
+
+      // Size demos setup
+      const sizeOptions = [
+        { value: 'apple', label: 'Apple' },
+        { value: 'banana', label: 'Banana' },
+        { value: 'cherry', label: 'Cherry' },
+        { value: 'grape', label: 'Grape' },
+        { value: 'orange', label: 'Orange' },
+      ]
+      document.getElementById('size-sm').options = sizeOptions
+      document.getElementById('size-md').options = sizeOptions
+      document.getElementById('size-lg').options = sizeOptions
     </script>
   </body>
 </html>

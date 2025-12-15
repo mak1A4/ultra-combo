@@ -15,7 +15,7 @@ describe('UltraCombo - Fetch URL Mode', () => {
     vi.useFakeTimers()
     originalFetch = globalThis.fetch
     mockFetch = vi.fn()
-    globalThis.fetch = mockFetch
+    globalThis.fetch = mockFetch as typeof fetch
   })
 
   afterEach(() => {
