@@ -41,6 +41,9 @@ export class UltraCombo extends LitElement {
   @property({ type: String, attribute: 'fetch-url' })
   fetchUrl: string | null = null
 
+  @property({ type: Object, attribute: false })
+  fetchHeaders: Record<string, string> = {}
+
   @property({ type: String, attribute: 'value-key' })
   valueKey = 'value'
 
@@ -248,7 +251,9 @@ export class UltraCombo extends LitElement {
       return { options: [], hasMore: false }
     }
 
-    const res = await fetch(url)
+    const res = await fetch(url, {
+      headers: this.fetchHeaders
+    })
     if (!res.ok) return { options: [], hasMore: false }
 
     const data = await res.json()
