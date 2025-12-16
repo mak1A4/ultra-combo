@@ -29,7 +29,7 @@ export class UltraCombo extends LitElement {
   @property({ attribute: false })
   fetchOptions: FetchOptions | null = null
 
-  @property({ type: Number })
+  @property({ type: Number, attribute: 'page-size' })
   pageSize = 20
 
   @property({ type: Number })
@@ -82,6 +82,9 @@ export class UltraCombo extends LitElement {
 
   @property({ attribute: false })
   filterOptions: FilterOptions | null = null
+
+  @property({ type: Boolean })
+  multiple = false
 
   @state()
   private _parentValue: string | null = null
@@ -319,8 +322,25 @@ export class UltraCombo extends LitElement {
     return allOptions.find(opt => opt.value === this.value)
   }
 
+  // Multiselect: split comma-separated value into array
+  private get _selectedValues(): string[] {
+    if (!this.value) return []
+    return this.value.split(',').filter(v => v.trim())
+  }
+
+  // Multiselect: get Option objects for all selected values
+  private get _selectedOptions(): Option[] {
+    const allOptions = this._isRemoteMode ? this._remoteOptions : this.options
+    return this._selectedValues
+      .map(v => allOptions.find(opt => opt.value === v))
+      .filter((opt): opt is Option => opt !== undefined)
+  }
+
   private get _displayValue(): string {
     if (this._isOpen) return this._inputValue
+
+    // In multiselect mode, values are shown as badges, so input is empty
+    if (this.multiple) return ''
 
     const selected = this._selectedOption
     if (!selected) return ''
@@ -352,7 +372,7 @@ export class UltraCombo extends LitElement {
             @focus=${this._onFocus}
             @keydown=${this._onKeyDown}
           />
-          ${this.value ? html`
+          ${this.value && !this.multiple ? html`
             <button
               class="clear-btn flex items-center justify-center ${s.button} border-none bg-transparent cursor-pointer text-gray-400 hover:text-gray-600"
               @click=${this._clearValue}
@@ -376,6 +396,7 @@ export class UltraCombo extends LitElement {
           </button>
         </div>
         ${this._isOpen ? this._renderDropdown() : null}
+        ${this._renderBadges()}
       </div>
     `
   }
@@ -416,7 +437,9 @@ export class UltraCombo extends LitElement {
     return html`
       <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10" @scroll=${this._onDropdownScroll}>
         ${filtered.map((opt, index) => {
-          const isSelected = opt.value === this.value
+          const isSelected = this.multiple
+            ? this._selectedValues.includes(opt.value)
+            : opt.value === this.value
           const isHighlighted = index === this._highlightedIndex
           return html`
             <div
@@ -424,7 +447,7 @@ export class UltraCombo extends LitElement {
               @click=${() => this._selectOption(opt)}
               @mouseenter=${() => this._highlightedIndex = index}
             >
-              ${opt.label}
+              ${this.multiple && isSelected ? html`<span class="mr-1">✓</span>` : null}${opt.label}
             </div>
           `
         })}
@@ -453,7 +476,9 @@ export class UltraCombo extends LitElement {
           ` : null}
           <tbody>
             ${options.map((opt, index) => {
-              const isSelected = opt.value === this.value
+              const isSelected = this.multiple
+                ? this._selectedValues.includes(opt.value)
+                : opt.value === this.value
               const isHighlighted = index === this._highlightedIndex
               return html`
                 <tr
@@ -461,8 +486,8 @@ export class UltraCombo extends LitElement {
                   @click=${() => this._selectOption(opt)}
                   @mouseenter=${() => this._highlightedIndex = index}
                 >
-                  ${this._columnKeys.map(key => html`
-                    <td class="${s.item} whitespace-nowrap">${getByPath(opt._raw ?? opt, key) ?? ''}</td>
+                  ${this._columnKeys.map((key, colIndex) => html`
+                    <td class="${s.item} whitespace-nowrap">${colIndex === 0 && this.multiple && isSelected ? html`<span class="mr-1">✓</span>` : null}${getByPath(opt._raw ?? opt, key) ?? ''}</td>
                   `)}
                 </tr>
               `
@@ -474,6 +499,33 @@ export class UltraCombo extends LitElement {
             <span class="spinner w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"></span> Loading more...
           </div>
         ` : null}
+      </div>
+    `
+  }
+
+  private _renderBadges() {
+    if (!this.multiple || this._selectedOptions.length === 0) return null
+
+    const s = this._sizeClasses
+    return html`
+      <div class="flex flex-wrap gap-1 mt-2">
+        ${this._selectedOptions.map(opt => html`
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 ${s.item} rounded">
+            ${opt.label}
+            <button
+              type="button"
+              class="hover:bg-blue-200 rounded p-0.5"
+              @click=${(e: Event) => {
+                e.stopPropagation()
+                this._removeSelection(opt.value)
+              }}
+            >
+              <svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </span>
+        `)}
       </div>
     `
   }
@@ -491,7 +543,8 @@ export class UltraCombo extends LitElement {
 
   private _onFocus() {
     this._isOpen = true
-    this._inputValue = this._selectedOption?.label ?? ''
+    // In multiselect mode, always clear input on focus (values are shown as badges)
+    this._inputValue = this.multiple ? '' : (this._selectedOption?.label ?? '')
     this._highlightedIndex = 0
 
     if (this._isRemoteMode && this._remoteOptions.length === 0) {
@@ -578,7 +631,8 @@ export class UltraCombo extends LitElement {
         e.preventDefault()
         if (!this._isOpen) {
           this._isOpen = true
-          this._inputValue = this._selectedOption?.label ?? ''
+          // In multiselect mode, always clear input on open (values are shown as badges)
+          this._inputValue = this.multiple ? '' : (this._selectedOption?.label ?? '')
           this._highlightedIndex = 0
           if (this._isRemoteMode && this._remoteOptions.length === 0) {
             const search = this.autoload ? '' : this._inputValue
@@ -641,7 +695,8 @@ export class UltraCombo extends LitElement {
     e.stopPropagation()
     this._isOpen = !this._isOpen
     if (this._isOpen) {
-      this._inputValue = this._selectedOption?.label ?? ''
+      // In multiselect mode, always clear input on open (values are shown as badges)
+      this._inputValue = this.multiple ? '' : (this._selectedOption?.label ?? '')
       this._highlightedIndex = 0
       if (this._isRemoteMode && this._remoteOptions.length === 0) {
         const search = this.autoload ? '' : this._inputValue
@@ -654,12 +709,59 @@ export class UltraCombo extends LitElement {
   }
 
   private _selectOption(opt: Option) {
-    this.value = opt.value
-    this._inputValue = ''
-    this._isOpen = false
-    this._highlightedIndex = -1
+    if (this.multiple) {
+      const values = [...this._selectedValues]
+      const index = values.indexOf(opt.value)
+
+      if (index >= 0) {
+        // Remove if already selected
+        values.splice(index, 1)
+      } else {
+        // Add if not selected
+        values.push(opt.value)
+      }
+
+      this.value = values.join(',')
+      this._inputValue = ''
+      this._isOpen = false
+      this._highlightedIndex = -1
+
+      // Dispatch with comma string and arrays
+      const selectedOpts = this._selectedOptions
+      this.dispatchEvent(new CustomEvent('change', {
+        detail: {
+          value: this.value,
+          values: values,
+          labels: selectedOpts.map(o => o.label)
+        },
+        bubbles: true,
+        composed: true
+      }))
+    } else {
+      // Single-select mode
+      this.value = opt.value
+      this._inputValue = ''
+      this._isOpen = false
+      this._highlightedIndex = -1
+      this.dispatchEvent(new CustomEvent('change', {
+        detail: { value: opt.value, label: opt.label },
+        bubbles: true,
+        composed: true
+      }))
+    }
+  }
+
+  private _removeSelection(valueToRemove: string) {
+    const values = this._selectedValues.filter(v => v !== valueToRemove)
+    this.value = values.join(',')
+
+    const selectedOpts = this._selectedOptions
     this.dispatchEvent(new CustomEvent('change', {
-      detail: { value: opt.value, label: opt.label },
+      detail: {
+        value: this.value,
+        values: values,
+        labels: selectedOpts.map(o => o.label)
+      },
       bubbles: true,
       composed: true
     }))

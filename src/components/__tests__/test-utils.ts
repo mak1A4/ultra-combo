@@ -41,3 +41,19 @@ export const getTableRows = (el: UltraCombo) =>
 
 export const getTableHeaders = (el: UltraCombo) =>
   el.shadowRoot!.querySelectorAll('thead th')
+
+export const getClearBtn = (el: UltraCombo) =>
+  el.shadowRoot!.querySelector('.clear-btn') as HTMLButtonElement | null
+
+// Sample data for cascading tests
+export const categoryOptions: Option[] = [
+  { value: 'electronics', label: 'Electronics' },
+  { value: 'clothing', label: 'Clothing' },
+]
+
+export const productOptions: Option[] = [
+  { value: 'phone', label: 'Phone', parentValue: 'electronics' },
+  { value: 'laptop', label: 'Laptop', parentValue: 'electronics' },
+  { value: 'shirt', label: 'Shirt', parentValue: 'clothing' },
+  { value: 'pants', label: 'Pants', parentValue: 'clothing' },
+]

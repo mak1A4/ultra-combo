@@ -31,6 +31,14 @@
         <p class="mt-2 text-sm text-gray-600">Selected: <span id="local-selected" class="font-medium">None</span></p>
       </section>
 
+      <!-- Multiselect Mode -->
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold mb-2">Multiselect Mode</h2>
+        <p class="text-gray-600 text-sm mb-3">Select multiple options with badge display</p>
+        <ultra-combo id="multi-combo" multiple placeholder="Select countries..."></ultra-combo>
+        <p class="mt-2 text-sm text-gray-600">Selected: <span id="multi-selected" class="font-medium">None</span></p>
+      </section>
+
       <!-- Remote Mode -->
       <section class="mb-8">
         <h2 class="text-lg font-semibold mb-2">Remote Mode (with autoload)</h2>
@@ -122,6 +130,29 @@
 
       localCombo.addEventListener('change', (e) => {
         localSelected.textContent = `${e.detail.label} (${e.detail.value})`
+      })
+
+      // Multiselect combo setup
+      const multiCombo = document.getElementById('multi-combo')
+      const multiSelected = document.getElementById('multi-selected')
+
+      multiCombo.options = [
+        { value: 'us', label: 'United States' },
+        { value: 'uk', label: 'United Kingdom' },
+        { value: 'ca', label: 'Canada' },
+        { value: 'au', label: 'Australia' },
+        { value: 'de', label: 'Germany' },
+        { value: 'fr', label: 'France' },
+        { value: 'jp', label: 'Japan' },
+        { value: 'br', label: 'Brazil' },
+      ]
+
+      multiCombo.addEventListener('change', (e) => {
+        if (e.detail.values && e.detail.values.length > 0) {
+          multiSelected.textContent = e.detail.labels.join(', ')
+        } else {
+          multiSelected.textContent = 'None'
+        }
       })
 
       // Remote combo setup
