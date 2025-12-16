@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
 import UnoCSS from 'unocss/vite'
+import remToPx from './vite/rem-to-px'
 
 export default defineConfig({
   plugins: [
     UnoCSS({
       mode: 'shadow-dom',
     }),
+    remToPx({ baseFontSize: 16 }),
   ],
   build: {
     lib: {
