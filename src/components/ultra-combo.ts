@@ -1,4 +1,4 @@
-import { LitElement, html, css, unsafeCSS } from 'lit'
+import { LitElement, html, css, unsafeCSS, PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { getByPath, formatTemplate } from './ultra-combo.utils.js'
 import type { Option, FetchResult, FetchOptions, FilterOptions } from './ultra-combo.types.js'
@@ -67,6 +67,29 @@ export class UltraCombo extends LitElement {
 
   @property({ type: Boolean, attribute: 'show-header' })
   showHeader = false
+
+  @property({ type: String, attribute: 'dropdown-max-width' })
+  dropdownMaxWidth = ''
+
+  @property({ type: String, attribute: 'column-max-width' })
+  columnMaxWidth = ''
+
+  @property({ type: Boolean, attribute: 'wrap-text' })
+  wrapText = false
+
+  @property({ type: Boolean, attribute: 'full-width' })
+  fullWidth = false
+
+  @property({ type: String, attribute: 'static-options' })
+  set staticOptions(val: string) {
+    if (val) {
+      try {
+        this.options = JSON.parse(val)
+      } catch (e) {
+        console.warn('ultra-combo: invalid static-options JSON', e)
+      }
+    }
+  }
 
   @property({ type: String, attribute: 'display-template' })
   displayTemplate = ''
@@ -187,6 +210,16 @@ export class UltraCombo extends LitElement {
     this._parentCombo?.removeEventListener('change', this._boundHandleParentChange)
   }
 
+  protected willUpdate(changedProperties: PropertyValues) {
+    // Clear cached results when fetchUrl changes
+    if (changedProperties.has('fetchUrl') && changedProperties.get('fetchUrl') !== undefined) {
+      this._remoteOptions = []
+      this._offset = 0
+      this._hasMore = false
+      this._lastSearch = ''
+    }
+  }
+
   private get _isRemoteMode(): boolean {
     return this.fetchOptions !== null || this.fetchUrl !== null
   }
@@ -239,7 +272,7 @@ export class UltraCombo extends LitElement {
 
   private async _fetchFromUrl(search: string, offset: number, limit: number): Promise<FetchResult> {
     let url = this.fetchUrl!
-      .replace('{search}', encodeURIComponent(search))
+      .replaceAll('{search}', encodeURIComponent(search))
       .replace('{offset}', String(offset))
       .replace('{limit}', String(limit))
 
@@ -361,7 +394,7 @@ export class UltraCombo extends LitElement {
     const s = this._sizeClasses
     const disabled = this._isEffectivelyDisabled
     return html`
-      <div class="relative w-full max-w-[300px]">
+      <div class="relative w-full ${this.fullWidth ? '' : 'max-w-[300px]'}">
         <div class="flex items-center border border-gray-300 rounded-md ${disabled ? 'bg-gray-50 opacity-60' : 'bg-white'} focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
           <input
             type="text"
@@ -427,9 +460,7 @@ export class UltraCombo extends LitElement {
       return html`
         <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10">
           <div class="no-results ${s.item} text-gray-500 italic">
-            ${this._isRemoteMode && !this._inputValue && !this.autoload
-              ? 'Type to search...'
-              : 'No results found'}
+            No results found
           </div>
         </div>
       `
@@ -468,8 +499,8 @@ export class UltraCombo extends LitElement {
   private _renderTableDropdown(options: Option[]) {
     const s = this._sizeClasses
     return html`
-      <div class="dropdown absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto overflow-x-auto z-10 min-w-full w-max" @scroll=${this._onDropdownScroll}>
-        <table class="w-full border-collapse">
+      <div class="dropdown absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto overflow-x-auto z-10 min-w-full ${this.dropdownMaxWidth ? '' : 'w-max'}" style="${this.dropdownMaxWidth ? `width: ${this.dropdownMaxWidth}; max-width: 100vw` : ''}" @scroll=${this._onDropdownScroll}>
+        <table class="w-full border-collapse" style="${this.columnMaxWidth ? 'table-layout: fixed' : ''}">
           ${this.showHeader ? html`
             <thead>
               <tr>
@@ -491,9 +522,13 @@ export class UltraCombo extends LitElement {
                   @click=${() => this._selectOption(opt)}
                   @mouseenter=${() => this._highlightedIndex = index}
                 >
-                  ${this._columnKeys.map((key, colIndex) => html`
-                    <td class="${s.item} whitespace-nowrap">${colIndex === 0 && this.multiple && isSelected ? html`<span class="mr-1">✓</span>` : null}${getByPath(opt._raw ?? opt, key) ?? ''}</td>
-                  `)}
+                  ${this._columnKeys.map((key, colIndex) => {
+                    const cellValue = getByPath(opt._raw ?? opt, key) ?? ''
+                    return html`
+                    <td class="${s.item} ${this.columnMaxWidth ? (this.wrapText ? 'break-words' : 'truncate') : 'whitespace-nowrap'}"
+                        style="${this.columnMaxWidth ? `max-width: ${this.columnMaxWidth}` : ''}"
+                        title="${this.columnMaxWidth && !this.wrapText ? cellValue : ''}">${colIndex === 0 && this.multiple && isSelected ? html`<span class="mr-1">✓</span>` : null}${cellValue}</td>
+                  `})}
                 </tr>
               `
             })}
@@ -548,13 +583,12 @@ export class UltraCombo extends LitElement {
 
   private _onFocus() {
     this._isOpen = true
-    // In multiselect mode, always clear input on focus (values are shown as badges)
-    this._inputValue = this.multiple ? '' : (this._selectedOption?.label ?? '')
+    // Clear input on focus so all options show initially
+    this._inputValue = ''
     this._highlightedIndex = 0
 
     if (this._isRemoteMode && this._remoteOptions.length === 0) {
-      const search = this.autoload ? '' : this._inputValue
-      this._fetchRemote(search, true)
+      this._fetchRemote('', true)  // Always fetch with empty search on focus
     }
   }
 
