@@ -127,6 +127,9 @@ export class UltraCombo extends LitElement {
   @state()
   private _remoteOptions: Option[] = []
 
+  // Cache for selected options - persists across remote option refreshes
+  private _selectedOptionsCache: Map<string, Option> = new Map()
+
   @state()
   private _isLoading = false
 
@@ -356,6 +359,10 @@ export class UltraCombo extends LitElement {
   }
 
   private get _selectedOption(): Option | undefined {
+    // Check cache first (for persisted selections across refreshes)
+    if (this._selectedOptionsCache.has(this.value)) {
+      return this._selectedOptionsCache.get(this.value)
+    }
     const allOptions = this._isRemoteMode ? this._remoteOptions : this.options
     return allOptions.find(opt => opt.value === this.value)
   }
@@ -370,7 +377,13 @@ export class UltraCombo extends LitElement {
   private get _selectedOptions(): Option[] {
     const allOptions = this._isRemoteMode ? this._remoteOptions : this.options
     return this._selectedValues
-      .map(v => allOptions.find(opt => opt.value === v))
+      .map(v => {
+        // Check cache first (for persisted selections across refreshes)
+        if (this._selectedOptionsCache.has(v)) {
+          return this._selectedOptionsCache.get(v)
+        }
+        return allOptions.find(opt => opt.value === v)
+      })
       .filter((opt): opt is Option => opt !== undefined)
   }
 
@@ -748,6 +761,9 @@ export class UltraCombo extends LitElement {
   }
 
   private _selectOption(opt: Option) {
+    // Cache selected option for persistence across remote refreshes
+    this._selectedOptionsCache.set(opt.value, opt)
+
     if (this.multiple) {
       const values = [...this._selectedValues]
       const index = values.indexOf(opt.value)
@@ -755,6 +771,7 @@ export class UltraCombo extends LitElement {
       if (index >= 0) {
         // Remove if already selected
         values.splice(index, 1)
+        this._selectedOptionsCache.delete(opt.value)
       } else {
         // Add if not selected
         values.push(opt.value)
@@ -793,6 +810,9 @@ export class UltraCombo extends LitElement {
   private _removeSelection(valueToRemove: string) {
     const values = this._selectedValues.filter(v => v !== valueToRemove)
     this.value = values.join(',')
+
+    // Remove from cache
+    this._selectedOptionsCache.delete(valueToRemove)
 
     const selectedOpts = this._selectedOptions
     this.dispatchEvent(new CustomEvent('change', {
@@ -833,6 +853,7 @@ export class UltraCombo extends LitElement {
     this._isOpen = false
     this._highlightedIndex = -1
     this._remoteOptions = []
+    this._selectedOptionsCache.clear()
     this._offset = 0
     this._hasMore = false
     this.dispatchEvent(new CustomEvent('change', {
