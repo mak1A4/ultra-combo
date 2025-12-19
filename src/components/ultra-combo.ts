@@ -13,6 +13,27 @@ export class UltraCombo extends LitElement {
     unsafeCSS(resetCSS),
     css`
       :host { display: block }
+
+      /* Custom scrollbar for dropdown */
+      .dropdown::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+      }
+      .dropdown::-webkit-scrollbar-track {
+        background: transparent;
+        border-radius: 6px;
+      }
+      .dropdown::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 6px;
+      }
+      .dropdown::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+      }
+      /* Firefox scrollbar */
+      .dropdown {
+        scrollbar-color: #d1d5db transparent;
+      }
       @unocss-placeholder
     `
   ]
