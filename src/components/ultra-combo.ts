@@ -133,6 +133,9 @@ export class UltraCombo extends LitElement {
   @property({ type: Boolean })
   multiple = false
 
+  @property({ type: Boolean })
+  disabled = false
+
   @state()
   private _parentValue: string | null = null
 
@@ -175,7 +178,7 @@ export class UltraCombo extends LitElement {
   }
 
   private get _isEffectivelyDisabled(): boolean {
-    return this.disableWithoutParent && this.dependsOn !== null && !this._parentValue
+    return this.disabled || (this.disableWithoutParent && this.dependsOn !== null && !this._parentValue)
   }
 
   private _handleParentChange(e: Event) {
