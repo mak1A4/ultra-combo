@@ -14,6 +14,11 @@ export class UltraCombo extends LitElement {
     css`
       :host { display: block }
 
+      .combo-trigger:focus-within {
+        border-color: var(--uc-focus-border-color, rgb(59 130 246));
+        box-shadow: 0 0 0 var(--uc-focus-ring-width, 2px) var(--uc-focus-ring-color, rgb(59 130 246 / 0.2));
+      }
+
       /* Custom scrollbar for dropdown */
       .dropdown::-webkit-scrollbar {
         width: 12px;
@@ -432,7 +437,7 @@ export class UltraCombo extends LitElement {
     const disabled = this._isEffectivelyDisabled
     return html`
       <div class="relative w-full ${this.fullWidth ? '' : 'max-w-[300px]'}">
-        <div class="flex items-center border border-gray-300 rounded-md ${disabled ? 'bg-gray-50 opacity-60' : 'bg-white'} focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
+        <div class="combo-trigger flex items-center border border-gray-300 rounded-md ${disabled ? 'bg-gray-50 opacity-60' : 'bg-white'}">
           <input
             type="text"
             class="flex-1 ${s.input} border-none rounded-md outline-none bg-transparent ${disabled ? 'cursor-not-allowed' : ''}"
