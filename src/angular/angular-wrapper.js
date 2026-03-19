@@ -40,6 +40,7 @@
                     fullWidth: '<?',
                     draggableChips: '<?',
                     staticOptions: '<',
+                    disabledPlaceholder: '@',
                     onChange: '&'
                 },
                 template: '<div class="rope-ultra-combo-wrapper"></div>',
@@ -66,7 +67,8 @@
                         'columnMaxWidth': 'column-max-width',
                         'wrapText': 'wrap-text',
                         'fullWidth': 'full-width',
-                        'draggableChips': 'draggable-chips'
+                        'draggableChips': 'draggable-chips',
+                        'disabledPlaceholder': 'disabled-placeholder'
                     };
 
                     // Set string attributes

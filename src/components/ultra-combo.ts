@@ -138,6 +138,9 @@ export class UltraCombo extends LitElement {
   @property({ type: Boolean })
   multiple = false
 
+  @property({ attribute: 'disabled-placeholder' })
+  disabledPlaceholder = ''
+
   @property({ type: Boolean })
   disabled = false
 
@@ -454,7 +457,7 @@ export class UltraCombo extends LitElement {
             type="text"
             class="flex-1 ${s.input} border-none rounded-md outline-none bg-transparent ${disabled ? 'cursor-not-allowed' : ''}"
             .value=${this._displayValue}
-            placeholder=${disabled ? 'Select parent first...' : this.placeholder}
+            placeholder=${disabled ? (this.disabledPlaceholder || this.placeholder || 'Select parent first...') : this.placeholder}
             ?disabled=${disabled}
             spellcheck="false"
             autocomplete="off"
