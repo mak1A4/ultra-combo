@@ -38,6 +38,7 @@
                     columnMaxWidth: '@',
                     wrapText: '<?',
                     fullWidth: '<?',
+                    draggableChips: '<?',
                     staticOptions: '<',
                     onChange: '&'
                 },
@@ -64,7 +65,8 @@
                         'dropdownMaxWidth': 'dropdown-max-width',
                         'columnMaxWidth': 'column-max-width',
                         'wrapText': 'wrap-text',
-                        'fullWidth': 'full-width'
+                        'fullWidth': 'full-width',
+                        'draggableChips': 'draggable-chips'
                     };
 
                     // Set string attributes
@@ -88,6 +90,7 @@
                     if (scope.autoload) combo.setAttribute('autoload', '');
                     if (scope.wrapText) combo.setAttribute('wrap-text', '');
                     if (scope.fullWidth) combo.setAttribute('full-width', '');
+                    if (scope.draggableChips) combo.setAttribute('draggable-chips', '');
 
                     // Set authentication headers for ServiceNow Table API
                     // g_ck is the CSRF token provided by ServiceNow

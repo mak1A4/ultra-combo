@@ -141,6 +141,9 @@ export class UltraCombo extends LitElement {
   @property({ type: Boolean })
   disabled = false
 
+  @property({ type: Boolean, attribute: 'draggable-chips' })
+  draggableChips = false
+
   @state()
   private _parentValue: string | null = null
 
@@ -170,6 +173,15 @@ export class UltraCombo extends LitElement {
 
   @state()
   private _offset = 0
+
+  @state()
+  private _chipDragIndex: number | null = null
+
+  @state()
+  private _chipDropIndex: number | null = null
+
+  @state()
+  private _chipDropPosition: 'before' | 'after' | null = null
 
   private _debounceTimer: number | null = null
   private _abortController: AbortController | null = null
@@ -589,27 +601,125 @@ export class UltraCombo extends LitElement {
     if (!this.multiple || this._selectedOptions.length === 0) return null
 
     const s = this._sizeClasses
+    const draggable = this.draggableChips && !this._isEffectivelyDisabled
     return html`
-      <div class="flex flex-wrap gap-1 mt-2">
-        ${this._selectedOptions.map(opt => html`
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 ${s.item} rounded">
-            ${opt.label}
-            <button
-              type="button"
-              class="hover:bg-blue-200 rounded p-0.5"
-              @click=${(e: Event) => {
-                e.stopPropagation()
-                this._removeSelection(opt.value)
-              }}
+      <div class="chip-list flex flex-wrap gap-1 mt-2">
+        ${this._selectedOptions.map((opt, index) => {
+          const isDragging = this._chipDragIndex === index
+          const isDropTarget = draggable
+            && this._chipDropIndex === index
+            && this._chipDragIndex !== null
+            && this._chipDragIndex !== index
+          const dropBefore = isDropTarget && this._chipDropPosition === 'before'
+          const dropAfter = isDropTarget && this._chipDropPosition === 'after'
+          return html`
+            <span
+              class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 ${s.item} rounded transition-shadow ${draggable ? 'cursor-grab active:cursor-grabbing select-none' : ''} ${isDragging ? 'opacity-40' : ''} ${dropBefore ? 'shadow-[-2px_0_0_0_rgb(59_130_246)]' : ''} ${dropAfter ? 'shadow-[2px_0_0_0_rgb(59_130_246)]' : ''}"
+              draggable=${draggable ? 'true' : 'false'}
+              @dragstart=${(e: DragEvent) => this._onChipDragStart(e, index)}
+              @dragover=${(e: DragEvent) => this._onChipDragOver(e, index)}
+              @dragleave=${(e: DragEvent) => this._onChipDragLeave(e, index)}
+              @drop=${(e: DragEvent) => this._onChipDrop(e, index)}
+              @dragend=${() => this._onChipDragEnd()}
             >
-              <svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-              </svg>
-            </button>
-          </span>
-        `)}
+              ${opt.label}
+              <button
+                type="button"
+                class="hover:bg-blue-200 rounded p-0.5"
+                draggable="false"
+                @mousedown=${(e: Event) => e.stopPropagation()}
+                @click=${(e: Event) => {
+                  e.stopPropagation()
+                  this._removeSelection(opt.value)
+                }}
+              >
+                <svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </span>
+          `
+        })}
       </div>
     `
+  }
+
+  private _onChipDragStart(e: DragEvent, index: number) {
+    if (!this.draggableChips || this._isEffectivelyDisabled) return
+    this._chipDragIndex = index
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', String(index))
+    }
+  }
+
+  private _onChipDragOver(e: DragEvent, index: number) {
+    if (this._chipDragIndex === null || this._chipDragIndex === index) return
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+
+    const target = e.currentTarget as HTMLElement
+    const rect = target.getBoundingClientRect()
+    const midX = rect.left + rect.width / 2
+    const position: 'before' | 'after' = e.clientX < midX ? 'before' : 'after'
+
+    if (this._chipDropIndex !== index || this._chipDropPosition !== position) {
+      this._chipDropIndex = index
+      this._chipDropPosition = position
+    }
+  }
+
+  private _onChipDragLeave(e: DragEvent, index: number) {
+    if (this._chipDropIndex !== index) return
+    const related = e.relatedTarget as Node | null
+    const list = this.shadowRoot?.querySelector('.chip-list')
+    if (!related || !list || !list.contains(related)) {
+      this._chipDropIndex = null
+      this._chipDropPosition = null
+    }
+  }
+
+  private _onChipDrop(e: DragEvent, index: number) {
+    e.preventDefault()
+    const from = this._chipDragIndex
+    const to = this._chipDropIndex ?? index
+    const position = this._chipDropPosition ?? 'after'
+    this._chipDragIndex = null
+    this._chipDropIndex = null
+    this._chipDropPosition = null
+    if (from === null || from === to) return
+    this._reorderChips(from, to, position)
+  }
+
+  private _onChipDragEnd() {
+    this._chipDragIndex = null
+    this._chipDropIndex = null
+    this._chipDropPosition = null
+  }
+
+  private _reorderChips(from: number, to: number, position: 'before' | 'after') {
+    const values = [...this._selectedValues]
+    if (from < 0 || from >= values.length || to < 0 || to >= values.length) return
+
+    const [moved] = values.splice(from, 1)
+    let insertIndex = to
+    if (from < to) insertIndex -= 1
+    if (position === 'after') insertIndex += 1
+    if (insertIndex < 0) insertIndex = 0
+    if (insertIndex > values.length) insertIndex = values.length
+    values.splice(insertIndex, 0, moved)
+
+    this.value = values.join(',')
+    const selectedOpts = this._selectedOptions
+    this.dispatchEvent(new CustomEvent('change', {
+      detail: {
+        value: this.value,
+        values,
+        labels: selectedOpts.map(o => o.label)
+      },
+      bubbles: true,
+      composed: true
+    }))
   }
 
   private _onInput(e: Event) {
