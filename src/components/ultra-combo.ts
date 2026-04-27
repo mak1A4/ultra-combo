@@ -258,6 +258,14 @@ export class UltraCombo extends LitElement {
   }
 
   protected willUpdate(changedProperties: PropertyValues) {
+    if (
+      changedProperties.has('value') ||
+      changedProperties.has('options') ||
+      changedProperties.has('_remoteOptions')
+    ) {
+      this._syncSelectedOptionsCache()
+    }
+
     // Clear cached results when fetchUrl changes
     if (changedProperties.has('fetchUrl') && changedProperties.get('fetchUrl') !== undefined) {
       this._remoteOptions = []
@@ -414,7 +422,24 @@ export class UltraCombo extends LitElement {
   // Multiselect: split comma-separated value into array
   private get _selectedValues(): string[] {
     if (!this.value) return []
-    return this.value.split(',').filter(v => v.trim())
+    return this.value.split(',').map(v => v.trim()).filter(Boolean)
+  }
+
+  private _syncSelectedOptionsCache() {
+    const selectedValues = this._selectedValues
+    if (selectedValues.length === 0) return
+
+    const allOptions = this._isRemoteMode ? this._remoteOptions : this.options
+    if (allOptions.length === 0) return
+
+    for (const value of selectedValues) {
+      if (this._selectedOptionsCache.has(value)) continue
+
+      const option = allOptions.find(opt => opt.value === value)
+      if (option) {
+        this._selectedOptionsCache.set(value, option)
+      }
+    }
   }
 
   // Multiselect: get Option objects for all selected values
@@ -793,6 +818,7 @@ export class UltraCombo extends LitElement {
       } else {
         this._remoteOptions = [...this._remoteOptions, ...result.options]
       }
+      this._syncSelectedOptionsCache()
       this._hasMore = result.hasMore
       this._offset += result.options.length
       this._highlightedIndex = reset ? 0 : this._highlightedIndex
