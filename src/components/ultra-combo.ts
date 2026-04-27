@@ -476,46 +476,48 @@ export class UltraCombo extends LitElement {
     const s = this._sizeClasses
     const disabled = this._isEffectivelyDisabled
     return html`
-      <div class="relative w-full ${this.fullWidth ? '' : 'max-w-[300px]'}">
-        <div class="combo-trigger flex items-center border border-gray-300 rounded-md ${disabled ? 'bg-gray-50 opacity-60' : 'bg-white'}">
-          <input
-            type="text"
-            class="flex-1 ${s.input} border-none rounded-md outline-none bg-transparent ${disabled ? 'cursor-not-allowed' : ''}"
-            .value=${this._displayValue}
-            placeholder=${disabled ? (this.disabledPlaceholder || this.placeholder || 'Select parent first...') : this.placeholder}
-            ?disabled=${disabled}
-            spellcheck="false"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            @input=${this._onInput}
-            @focus=${this._onFocus}
-            @keydown=${this._onKeyDown}
-          />
-          ${this.value && !this.multiple ? html`
+      <div class="w-full ${this.fullWidth ? '' : 'max-w-[300px]'}">
+        <div class="relative">
+          <div class="combo-trigger flex items-center border border-gray-300 rounded-md ${disabled ? 'bg-gray-50 opacity-60' : 'bg-white'}">
+            <input
+              type="text"
+              class="flex-1 ${s.input} border-none rounded-md outline-none bg-transparent ${disabled ? 'cursor-not-allowed' : ''}"
+              .value=${this._displayValue}
+              placeholder=${disabled ? (this.disabledPlaceholder || this.placeholder || 'Select parent first...') : this.placeholder}
+              ?disabled=${disabled}
+              spellcheck="false"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              @input=${this._onInput}
+              @focus=${this._onFocus}
+              @keydown=${this._onKeyDown}
+            />
+            ${this.value && !this.multiple ? html`
+              <button
+                class="clear-btn flex items-center justify-center ${s.button} border-none bg-transparent cursor-pointer text-gray-400 hover:text-gray-600"
+                @click=${this._clearValue}
+                type="button"
+                tabindex="-1"
+              >
+                <svg class="${s.icon}" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            ` : null}
             <button
-              class="clear-btn flex items-center justify-center ${s.button} border-none bg-transparent cursor-pointer text-gray-400 hover:text-gray-600"
-              @click=${this._clearValue}
+              class="toggle-btn flex items-center justify-center ${s.button} border-none bg-transparent cursor-pointer text-gray-500 hover:text-gray-700"
+              @click=${this._toggleDropdown}
               type="button"
               tabindex="-1"
             >
-              <svg class="${s.icon}" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              <svg class="${s.icon} transition-transform duration-200 ${this._isOpen ? 'rotate-180' : ''}" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
               </svg>
             </button>
-          ` : null}
-          <button
-            class="toggle-btn flex items-center justify-center ${s.button} border-none bg-transparent cursor-pointer text-gray-500 hover:text-gray-700"
-            @click=${this._toggleDropdown}
-            type="button"
-            tabindex="-1"
-          >
-            <svg class="${s.icon} transition-transform duration-200 ${this._isOpen ? 'rotate-180' : ''}" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-            </svg>
-          </button>
+          </div>
+          ${this._isOpen ? this._renderDropdown() : null}
         </div>
-        ${this._isOpen ? this._renderDropdown() : null}
         ${this._renderBadges()}
       </div>
     `
