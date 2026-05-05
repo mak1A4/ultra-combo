@@ -38,6 +38,7 @@
                     columnMaxWidth: '@',
                     wrapText: '<?',
                     fullWidth: '<?',
+                    resizableDropdown: '<?',
                     draggableChips: '<?',
                     staticOptions: '<',
                     disabledPlaceholder: '@',
@@ -67,6 +68,7 @@
                         'columnMaxWidth': 'column-max-width',
                         'wrapText': 'wrap-text',
                         'fullWidth': 'full-width',
+                        'resizableDropdown': 'resizable-dropdown',
                         'draggableChips': 'draggable-chips',
                         'disabledPlaceholder': 'disabled-placeholder'
                     };
@@ -92,6 +94,7 @@
                     if (scope.autoload) combo.setAttribute('autoload', '');
                     if (scope.wrapText) combo.setAttribute('wrap-text', '');
                     if (scope.fullWidth) combo.setAttribute('full-width', '');
+                    if (scope.resizableDropdown) combo.setAttribute('resizable-dropdown', '');
                     if (scope.draggableChips) combo.setAttribute('draggable-chips', '');
 
                     // Set authentication headers for ServiceNow Table API

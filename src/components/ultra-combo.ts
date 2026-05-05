@@ -106,6 +106,9 @@ export class UltraCombo extends LitElement {
   @property({ type: Boolean, attribute: 'full-width' })
   fullWidth = false
 
+  @property({ type: Boolean, attribute: 'resizable-dropdown' })
+  resizableDropdown = false
+
   @property({ type: String, attribute: 'static-options' })
   set staticOptions(val: string) {
     if (val) {
@@ -191,6 +194,8 @@ export class UltraCombo extends LitElement {
   private _boundHandleClickOutside = this._handleClickOutside.bind(this)
   private _boundHandleParentChange = this._handleParentChange.bind(this)
   private _lastSearch = ''
+  private _dropdownResizeObserver: ResizeObserver | null = null
+  private _dropdownSize: { width: number; height: number } | null = null
 
   private get _parentCombo(): UltraCombo | null {
     if (!this.dependsOn) return null
@@ -254,6 +259,7 @@ export class UltraCombo extends LitElement {
     super.disconnectedCallback()
     document.removeEventListener('click', this._boundHandleClickOutside)
     if (this._debounceTimer) clearTimeout(this._debounceTimer)
+    this._dropdownResizeObserver?.disconnect()
     this._parentCombo?.removeEventListener('change', this._boundHandleParentChange)
   }
 
@@ -272,6 +278,12 @@ export class UltraCombo extends LitElement {
       this._offset = 0
       this._hasMore = false
       this._lastSearch = ''
+    }
+  }
+
+  protected updated(changedProperties: PropertyValues) {
+    if (changedProperties.has('_isOpen') || changedProperties.has('resizableDropdown')) {
+      this._syncDropdownResizeObserver()
     }
   }
 
@@ -305,6 +317,7 @@ export class UltraCombo extends LitElement {
         button: 'p-1',
         icon: 'w-3.5 h-3.5',
         dropdown: 'max-h-[160px]',
+        dropdownHeight: '160px',
         item: 'px-2 py-1 text-sm',
       },
       md: {
@@ -312,6 +325,7 @@ export class UltraCombo extends LitElement {
         button: 'p-1.5',
         icon: 'w-4 h-4',
         dropdown: 'max-h-[200px]',
+        dropdownHeight: '200px',
         item: 'px-2.5 py-1.5 text-sm',
       },
       lg: {
@@ -319,10 +333,48 @@ export class UltraCombo extends LitElement {
         button: 'p-2',
         icon: 'w-4 h-4',
         dropdown: 'max-h-[240px]',
+        dropdownHeight: '240px',
         item: 'px-3 py-2',
       },
     }
     return sizes[this.size] || sizes.md
+  }
+
+  private _resizableDropdownStyle(anchorToInput = false, defaultWidth = '100%'): string {
+    if (!this.resizableDropdown) return ''
+
+    const anchorStyle = anchorToInput ? 'right: auto; ' : ''
+    const width = this._dropdownSize ? `${Math.round(this._dropdownSize.width)}px` : defaultWidth
+    const height = this._dropdownSize ? `${Math.round(this._dropdownSize.height)}px` : this._sizeClasses.dropdownHeight
+    return `${anchorStyle}resize: both; width: ${width}; height: ${height}; min-width: 100%; min-height: 80px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px);`
+  }
+
+  private get _tableDropdownStyle(): string {
+    return this.dropdownMaxWidth
+      ? `max-width: 100vw; ${this.resizableDropdown ? this._resizableDropdownStyle(false, this.dropdownMaxWidth) : `width: ${this.dropdownMaxWidth};`}`
+      : this._resizableDropdownStyle()
+  }
+
+  private _syncDropdownResizeObserver() {
+    this._dropdownResizeObserver?.disconnect()
+    this._dropdownResizeObserver = null
+
+    if (!this.resizableDropdown || !this._isOpen) return
+
+    const dropdown = this.shadowRoot?.querySelector('.dropdown') as HTMLElement | null
+    if (!dropdown) return
+
+    this._dropdownResizeObserver = new ResizeObserver(entries => {
+      const entry = entries[0]
+      if (!entry) return
+
+      const width = entry.contentRect.width
+      const height = entry.contentRect.height
+      if (width > 0 && height > 0) {
+        this._dropdownSize = { width, height }
+      }
+    })
+    this._dropdownResizeObserver.observe(dropdown)
   }
 
   private async _fetchFromUrl(search: string, offset: number, limit: number): Promise<FetchResult> {
@@ -529,7 +581,7 @@ export class UltraCombo extends LitElement {
 
     if (this._isLoading) {
       return html`
-        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10">
+        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10" style="${this._resizableDropdownStyle(true)}">
           <div class="skeleton-container py-1">
             <div class="skeleton-item h-8 mx-2 my-1 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 bg-[length:200%_100%] animate-shimmer rounded w-[85%]"></div>
             <div class="skeleton-item h-8 mx-2 my-1 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 bg-[length:200%_100%] animate-shimmer rounded w-[70%]"></div>
@@ -542,7 +594,7 @@ export class UltraCombo extends LitElement {
 
     if (filtered.length === 0) {
       return html`
-        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10">
+        <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10" style="${this._resizableDropdownStyle(true)}">
           <div class="no-results ${s.item} text-gray-500 italic">
             No results found
           </div>
@@ -555,7 +607,7 @@ export class UltraCombo extends LitElement {
     }
 
     return html`
-      <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10" @scroll=${this._onDropdownScroll}>
+      <div class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto z-10" style="${this._resizableDropdownStyle(true)}" @scroll=${this._onDropdownScroll}>
         ${filtered.map((opt, index) => {
           const isSelected = this.multiple
             ? this._selectedValues.includes(opt.value)
@@ -583,7 +635,7 @@ export class UltraCombo extends LitElement {
   private _renderTableDropdown(options: Option[]) {
     const s = this._sizeClasses
     return html`
-      <div class="dropdown absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto overflow-x-auto z-10 min-w-full ${this.dropdownMaxWidth ? '' : 'w-max'}" style="${this.dropdownMaxWidth ? `width: ${this.dropdownMaxWidth}; max-width: 100vw` : ''}" @scroll=${this._onDropdownScroll}>
+      <div class="dropdown absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-md ${s.dropdown} overflow-y-auto overflow-x-auto z-10 min-w-full ${this.dropdownMaxWidth ? '' : 'w-max'}" style="${this._tableDropdownStyle}" @scroll=${this._onDropdownScroll}>
         <table class="w-full border-collapse" style="${this.columnMaxWidth ? 'table-layout: fixed' : ''}">
           ${this.showHeader ? html`
             <thead>

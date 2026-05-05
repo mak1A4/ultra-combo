@@ -258,6 +258,7 @@ Use `{depends}` placeholder in `fetch-url`:
 | `column-headers` | String | `''` | Comma-separated headers (defaults to capitalized keys) |
 | `show-header` | Boolean | `false` | Show table header row |
 | `search-columns` | String | `''` | Columns to search (defaults to all in table mode) |
+| `resizable-dropdown` | Boolean | `false` | Allow users to resize the open dropdown |
 | `depends-on` | String | `null` | ID of parent combobox for cascading |
 | `depends-param` | String | `'parentValue'` | Parameter name for parent's value in fetch |
 | `disable-without-parent` | Boolean | `false` | Disable until parent has value |
